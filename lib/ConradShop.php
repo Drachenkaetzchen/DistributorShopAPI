@@ -22,19 +22,33 @@ class ConradShop extends MasterClass implements IShopAPI {
 	 * A pregexp, if an article ID was wrong.
 	 * @var string
 	 */
-	private $articleNotFoundPregexp = '/leider konnten wir keinen artikel mit/i';
+	private $articleNotFoundPregexp = 
+			'/leider konnten wir keinen artikel mit/i';
+	
+	/**
+	 * A pregexp, where the detail page part is
+	 * @var string
+	 */
+	private $detailPregexp = '/<div class="inner" id="details">/i';
 	
 	
 	/**
-	 * An array of detail divs
+	 * An array of detail div's pregexps
 	 * @var array
 	 */
-	private $detailDivIds = array (
+	private $detailDivPregexps = array (
 			'/<div id="mc_info_\d{4,8}_produktbezeichnung">/i',
 			'/<div id="mc_info_\d{4,8}_highlights">/i',
 			'/<div id="mc_info_\d{4,8}_beschreibung">/i',
 			'/<div id="mc_info_\d{4,8}_special">/i',
 			'/<div id="mc_info_\d{4,8}_technischedaten">/i');
+			
+
+	/**
+	 * A pregexp for the attributes-part
+	 */
+	private $attributesPregexp = 
+			'/<div id="mc_info_\d{4,8}_technischedaten2">/i';
 			
 	
 	
@@ -75,6 +89,7 @@ class ConradShop extends MasterClass implements IShopAPI {
 		
 		$this->extractPriceFromPagedata($response, $article);
 		$this->extractDescriptionFromPagedata($response, $article);
+		$this->extractAttributesFromPagedata($response, $article);
 		
 		return $article;
 	}
@@ -104,6 +119,49 @@ class ConradShop extends MasterClass implements IShopAPI {
 	
 	
 	/**
+	 * Extracs attributes from the html and returns it in a nice array
+	 *
+	 * @param string      $pagedata
+	 * @param ShopArticle &$article
+	 * @return (false|array)
+	 */
+	private function extractAttributesFromPagedata($pagedata,
+	                                               ShopArticle &$article) {
+		$data = $this->extractDivFromHtml($this->detailPregexp, $pagedata);
+		if (!$data)
+			return false;
+		
+		$data = $this->extractDivFromHtml($this->attributesPregexp, $data);
+		if (!$data)
+			return false;
+		
+		$attributes = array();
+		$curPos = 0;
+		while(true) {
+			$openPos = stripos($data, '<th>', $curPos);
+			if ($openPos === false)
+				break;
+			
+			$closePos = stripos($data, '</th>', $curPos+4);
+			$key = substr($data, $openPos+4, $closePos - $openPos - 4);
+			
+			$curPos = $closePos+5;
+			
+			$openPos = stripos($data, '<td>', $curPos);
+			$closePos = stripos($data, '</td>', $curPos+4);
+			$attributes[$key] = trim(substr($data, $openPos+4, 
+					$closePos - $openPos - 4));
+			
+			$curPos = $closePos+5;
+		}
+		
+		$article->Attributes = $attributes;
+		return true;
+	}
+	
+	
+	
+	/**
 	 * Extracts the description html part from the homepage.
 	 *
 	 * @param  string      $pagedata
@@ -112,13 +170,12 @@ class ConradShop extends MasterClass implements IShopAPI {
 	 */
 	private function extractDescriptionFromPagedata($pagedata,
 	                                                ShopArticle &$article) {
-		$data = $this->extractDivFromHtml(
-				'/<div class="inner" id="details">/i', $pagedata);
+		$data = $this->extractDivFromHtml($this->detailPregexp, $pagedata);
 		if (!$data)
 			return false;
 		
 		$description = '';
-		foreach ($this->detailDivIds as $pregexp) {
+		foreach ($this->detailDivPregexps as $pregexp) {
 			$part = $this->extractDivFromHtml($pregexp, $data);
 			if ($part)
 				$description .= $part;
