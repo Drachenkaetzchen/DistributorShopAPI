@@ -29,9 +29,16 @@ class ShopArticle extends MasterClass {
 	
 	/**
 	 * The currency's ISO 4217 code, in which the price is given.
+	 * Required, if self::$Price is given.
 	 * @var     string
 	 * @see     http://en.wikipedia.org/wiki/ISO_4217
 	 * @example "EUR", "USD", "GBP"
+	 */
+	public $Currency = null;
+	
+	/**
+	 * A open description from the homepage for unstructered information.
+	 * @var string
 	 */
 	public $Description = null;
 	
