@@ -42,14 +42,18 @@ class ConradShop extends MasterClass implements IShopAPI {
 			'/<div id="mc_info_\d{4,8}_beschreibung">/i',
 			'/<div id="mc_info_\d{4,8}_special">/i',
 			'/<div id="mc_info_\d{4,8}_technischedaten">/i');
-			
-
+	
+	
 	/**
 	 * A pregexp for the attributes-part
+	 * @var string
 	 */
 	private $attributesPregexp = 
 			'/<div id="mc_info_\d{4,8}_technischedaten2">/i';
-			
+	
+	
+	private $datasheetPregexp = '/<div class="inner" id="download-dokumente"/';
+	
 	
 	
 	/**
@@ -90,6 +94,7 @@ class ConradShop extends MasterClass implements IShopAPI {
 		$this->extractPriceFromPagedata($response, $article);
 		$this->extractDescriptionFromPagedata($response, $article);
 		$this->extractAttributesFromPagedata($response, $article);
+		$this->extractDatasheetUrlsFromPagedata($response, $article);
 		
 		return $article;
 	}
@@ -116,6 +121,65 @@ class ConradShop extends MasterClass implements IShopAPI {
 		
 		return true;
 	}
+	
+	
+	/**
+	 * Extracts the DatasheetUrls (if given) for a specific article
+	 *
+	 * @param string      $pagedata
+	 * @param ShopArticle &$article
+	 * @return bool       $success
+	 */
+	private function extractDatasheetUrlsFromPagedata($pagedata, 
+	                                                  ShopArticle &$article ) {
+		$data = $this->extractDivFromHtml($this->datasheetPregexp, $pagedata);
+		
+		if (empty($data))
+			return false;
+		
+		$manuals = array();
+		$curPos = 0;
+		$curTitle = '';
+		while(true) {
+			$openPos = stripos($data, '<li>', $curPos);
+			if ($openPos === false)
+				break;
+			
+			$closePos = stripos($data, '</li>', $curPos+4);
+			
+			$curPos = $openPos+4;
+			$part = substr($data, $openPos, $closePos-$openPos);
+			
+			echo "> $part\n\n";
+			
+			$url = null;
+			if (!stripos($part, '<a ')) {
+				$curTitle = strip_tags($part);
+				echo ">>> TITLE: $curTitle\n\n";
+			} else {
+				$hrefOpenPos = stripos($part, ' href="') + 7;
+				$hrefClosePos = stripos($part, '"', $hrefOpenPos);
+				$url = substr($part, $hrefOpenPos, 
+						$hrefClosePos - $hrefOpenPos);
+				echo ">>> URL: $url\n\n";
+			
+				$curTitleName = $curTitle;
+				if (array_key_exists($curTitle, $manuals)) {
+					$i = 1;
+					while (array_key_exists($curTitle.'_'.$i, $manuals))
+						$i++;
+					$curTitleName = $curTitle.'_'.$i;
+				}
+				$manuals[$curTitleName] = $url;
+			}
+			
+			$curPos = $closePos+5;
+		}
+		$article->DatasheetUrls = $manuals;
+		
+		return true;
+	}
+	
 	
 	
 	/**
